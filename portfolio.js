@@ -4,24 +4,98 @@
 
 document.addEventListener('DOMContentLoaded', () => {
 
-  // 1. TABS LOGIC
+  // ─── 0. MOBILE NAV DRAWER ───
+  const navToggle = document.getElementById('nav-toggle');
+  const navLinks = document.querySelector('.nav-links');
+  let overlay = null;
+
+  function openNav() {
+    navLinks.classList.add('open');
+    navToggle.textContent = '✕';
+    overlay = document.createElement('div');
+    overlay.className = 'nav-overlay';
+    overlay.addEventListener('click', closeNav);
+    document.body.appendChild(overlay);
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeNav() {
+    navLinks.classList.remove('open');
+    navToggle.textContent = '☰';
+    if (overlay) {
+      overlay.remove();
+      overlay = null;
+    }
+    document.body.style.overflow = '';
+  }
+
+  if (navToggle) {
+    navToggle.addEventListener('click', () => {
+      if (navLinks.classList.contains('open')) {
+        closeNav();
+      } else {
+        openNav();
+      }
+    });
+  }
+
+  // Close nav when a nav link is clicked (mobile)
+  if (navLinks) {
+    navLinks.querySelectorAll('a').forEach(link => {
+      link.addEventListener('click', closeNav);
+    });
+  }
+
+  // ─── 1. SMOOTH ANCHOR SCROLLING ───
+  document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+    anchor.addEventListener('click', (e) => {
+      const target = document.querySelector(anchor.getAttribute('href'));
+      if (target) {
+        e.preventDefault();
+        const navH = document.querySelector('nav')?.offsetHeight || 0;
+        const top = target.getBoundingClientRect().top + window.scrollY - navH - 16;
+        window.scrollTo({ top, behavior: 'smooth' });
+      }
+    });
+  });
+
+  // ─── 2. SCROLL REVEAL ANIMATIONS ───
+  const revealElements = document.querySelectorAll(
+    '.section-head, .kpi-card, .chart-card, .framework-card, .case-card, .cred-card, .ebitda-wrap, .scqa, .hero-left'
+  );
+  revealElements.forEach((el, i) => {
+    el.classList.add('reveal');
+    // Stagger within same section
+    const delay = (i % 4);
+    if (delay > 0) el.classList.add('reveal-delay-' + Math.min(delay, 3));
+  });
+
+  const revealObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+        revealObserver.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
+
+  document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
+
+  // ─── 3. TABS LOGIC ───
   const tabBtns = document.querySelectorAll('.tab-btn');
   const tabPanels = document.querySelectorAll('.tab-panel');
 
   tabBtns.forEach(btn => {
     btn.addEventListener('click', () => {
-      // Remove active from all
       tabBtns.forEach(b => b.classList.remove('active'));
       tabPanels.forEach(p => p.classList.remove('active'));
-      
-      // Add active to clicked
       btn.classList.add('active');
       const targetId = 'tab-' + btn.dataset.tab;
       document.getElementById(targetId).classList.add('active');
     });
   });
 
-  // 2. EBITDA SIMULATOR LOGIC
+  // ─── 4. EBITDA SIMULATOR LOGIC ───
   const sliders = {
     aov: document.getElementById('aov'),
     delivery: document.getElementById('delivery'),
@@ -110,7 +184,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateEbitda();
   }
 
-  // 3. ANIMATE KPI NUMBERS
+  // ─── 5. ANIMATE KPI NUMBERS ───
   const animateValue = (id, start, end, duration, prefix = '', suffix = '') => {
     const obj = document.getElementById(id);
     if (!obj) return;
@@ -118,7 +192,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const step = (timestamp) => {
       if (!startTimestamp) startTimestamp = timestamp;
       const progress = Math.min((timestamp - startTimestamp) / duration, 1);
-      const val = Math.floor(progress * (end - start) + start);
+      // Eased progress for smoother animation
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const val = Math.floor(eased * (end - start) + start);
       obj.innerHTML = prefix + val + suffix;
       if (progress < 1) {
         window.requestAnimationFrame(step);
@@ -128,21 +204,21 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Run animations when scrolled into view
-  const observer = new IntersectionObserver((entries) => {
+  const kpiObserver = new IntersectionObserver((entries) => {
     if (entries[0].isIntersecting) {
       animateValue('kpi-projects', 0, 12, 1500);
       animateValue('kpi-value', 0, 180, 2000, '₹', ' Cr');
       animateValue('kpi-frameworks', 0, 15, 1500);
       animateValue('kpi-tools', 0, 8, 1000);
-      observer.disconnect();
-      initCharts(); // Initialize charts when visible
+      kpiObserver.disconnect();
+      initCharts();
     }
   });
   
   const kpiSection = document.getElementById('performance');
-  if (kpiSection) observer.observe(kpiSection);
+  if (kpiSection) kpiObserver.observe(kpiSection);
 
-  // 4. CHART.JS INITIALIZATION
+  // ─── 6. CHART.JS INITIALIZATION ───
   function initCharts() {
     Chart.defaults.color = '#cbd5e1';
     Chart.defaults.font.family = "'Inter', sans-serif";
@@ -270,5 +346,26 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
   }
+
+  // ─── 7. NAV HIGHLIGHT ON SCROLL ───
+  const sections = document.querySelectorAll('section[id]');
+  const navAnchors = document.querySelectorAll('.nav-links a[href^="#"]');
+  
+  window.addEventListener('scroll', () => {
+    const scrollY = window.scrollY + 120;
+    sections.forEach(section => {
+      const top = section.offsetTop;
+      const height = section.offsetHeight;
+      const id = section.getAttribute('id');
+      if (scrollY >= top && scrollY < top + height) {
+        navAnchors.forEach(a => {
+          a.style.color = '';
+          if (a.getAttribute('href') === '#' + id) {
+            a.style.color = '#e8a020';
+          }
+        });
+      }
+    });
+  });
 
 });
